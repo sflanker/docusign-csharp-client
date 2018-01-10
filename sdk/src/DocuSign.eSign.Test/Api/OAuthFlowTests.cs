@@ -1,17 +1,15 @@
 ﻿using DocuSign.eSign.Api;
 using DocuSign.eSign.Client;
 using DocuSign.eSign.Model;
-using Microsoft.Owin.Hosting;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Newtonsoft.Json;
-using Owin;
 using System;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
-using System.Text;
 using System.Threading;
-using System.Web.Http;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc;
+using NUnit.Framework;
 
 namespace SdkTests
 {
@@ -32,8 +30,8 @@ namespace SdkTests
     //  2. Set a client Secret (client_secret below );
     //  3. Set a callback Url (redirect_url below).
 
-    [TestClass]
-    public class OAuthFlowTests : ApiController
+    [TestFixture]
+    public class OAuthFlowTests
     {
         // DocuSign REST API base URL
         public const string BaseUrl = "https://demo.docusign.net/restapi";
@@ -61,7 +59,7 @@ namespace SdkTests
         // until the OAuth login is completed.
         public static ManualResetEvent WaitForCallbackEvent = null;
 
-        [TestMethod]
+        [Test]
         public void OAuthAuthorizationCodeFlowTest()
         {
 
@@ -78,8 +76,10 @@ namespace SdkTests
 
             // Launch a self-hosted web server to accepte the redirect_url call
             // after the user finishes authentication.
-            using (WebApp.Start<Startup>("http://localhost:3000"))
+            using (var webHost = BuildWebHost())
             {
+                Trace.WriteLine("Starting WebServer.");
+                webHost.Start();
                 Trace.WriteLine("WebServer Running. Waiting for access_token...");
 
                 // This waits for the redirect_url to be received in the REST controller
@@ -119,12 +119,12 @@ namespace SdkTests
             Trace.WriteLine(accountInformation.ToString());
         }
 
-        [TestMethod]
+        [Test, Ignore("NOT RELEASED IN THIS VERSION")]
         public void OAuthResourceOwnerPasswordGrantTest()
         {
 
             // NOT RELEASED IN THIS VERSION
-            throw new AssertFailedException("Not Implemented");
+            throw new NotImplementedException();
             //ApiClient apiClient = new ApiClient(TestConfig.BaseUrl);
             //string authHeader = Utils.CreateAuthHeader(TestConfig.UserName, TestConfig.Password, TestConfig.IntegratorKey);
 
@@ -153,37 +153,38 @@ namespace SdkTests
 
 
         }
+
+        private static IWebHost BuildWebHost() {
+            return new WebHostBuilder()
+                .UseKestrel()
+                .UseUrls("http://localhost:3000")
+                .UseStartup<Startup>()
+                .Build();
+        }
     }
 
-    // Configuration for self-hosted Web service. THis allows the test to call out to the
+    // Configuration for self-hosted Web service. This allows the test to call out to the
     // Account Server endponts and have the resulting browser login session redirect
     // directly into this test.
     public class Startup
     {
-        public void Configuration(IAppBuilder app)
-        {
-            // Configure Web API for self-host. 
-            var config = new HttpConfiguration();
-            config.Routes.MapHttpRoute(
-                name: "DefaultApi",
-                routeTemplate: "auth/{controller}/{id}",
-                defaults: new { controller = "callback", id = RouteParameter.Optional }
-            );
-
-            app.UseWebApi(config);
+        public void Configure(IApplicationBuilder app) {
+            app.UseMvc();
         }
     }
 
     // API Controller and action called via the redirect_url registered for thie client_id
-    public class callbackController : ApiController
+    public class CallbackController : Controller
     {
         // GET auth/callback 
-        public HttpResponseMessage Get()
+        [HttpGet]
+        public HttpResponseMessage Get([FromQuery]string code, [FromQuery]string state)
         {
-            OAuthFlowTests.AccessCode = Request.RequestUri.ParseQueryString()["code"];
+
+            OAuthFlowTests.AccessCode = code;
 
             // state is app-specific string that may be passed around for validation.
-            OAuthFlowTests.StateValue = Request.RequestUri.ParseQueryString()["state"];
+            OAuthFlowTests.StateValue = state;
 
             HttpResponseMessage response = new HttpResponseMessage();
             response.Content = new StringContent("Redirect Completed");

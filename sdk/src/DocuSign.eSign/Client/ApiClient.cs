@@ -11,8 +11,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.IdentityModel.Protocols.WSTrust;
-using System.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -20,13 +19,12 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using Microsoft.IdentityModel.Tokens;
 using Newtonsoft.Json;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.OpenSsl;
-using Org.BouncyCastle.Security;
 using RestSharp;
-using Newtonsoft.Json.Linq;
 
 namespace DocuSign.eSign.Client
 {
@@ -143,7 +141,7 @@ namespace DocuSign.eSign.Client
             // add file parameter, if any
             foreach(var param in fileParams)
             {
-                request.AddFile(param.Value.Name, param.Value.Writer, param.Value.FileName, param.Value.ContentType);
+                request.AddFile(param.Value.Name, param.Value.Writer, param.Value.FileName, param.Value.ContentLength, param.Value.ContentType);
             }
 
             if (postBody != null) // http body (model or byte[]) parameter
@@ -558,9 +556,12 @@ namespace DocuSign.eSign.Client
         {
             JwtSecurityTokenHandler handler = new JwtSecurityTokenHandler();
 
-            SecurityTokenDescriptor descriptor = new SecurityTokenDescriptor()
+            var now = DateTime.UtcNow;
+            SecurityTokenDescriptor descriptor = new SecurityTokenDescriptor
             {
-                Lifetime = new Lifetime(DateTime.UtcNow, DateTime.UtcNow.AddHours(expiresInHours)),
+                IssuedAt = now,
+                NotBefore = now,
+                Expires = now.AddHours(expiresInHours)
             };
 
             descriptor.Subject = new ClaimsIdentity();
@@ -629,15 +630,32 @@ namespace DocuSign.eSign.Client
             if (result is AsymmetricCipherKeyPair)
             {
                 AsymmetricCipherKeyPair keyPair = (AsymmetricCipherKeyPair)result;
-                return DotNetUtilities.ToRSA((RsaPrivateCrtKeyParameters)keyPair.Private);
-            }
-            else if (result is RsaKeyParameters)
-            {
-                RsaKeyParameters keyParameters = (RsaKeyParameters)result;
-                return DotNetUtilities.ToRSA(keyParameters);
+                return ToRSA((RsaPrivateCrtKeyParameters)keyPair.Private);
             }
 
             throw new Exception("Unepxected PEM type");
+        }
+
+        public static RSA ToRSA(RsaPrivateCrtKeyParameters privKey)
+        {
+            RSAParameters rp = ToRSAParameters(privKey);
+            RSACryptoServiceProvider rsaCsp = new RSACryptoServiceProvider();
+            rsaCsp.ImportParameters(rp);
+            return rsaCsp;
+        }
+
+        public static RSAParameters ToRSAParameters(RsaPrivateCrtKeyParameters privKey)
+        {
+            RSAParameters rp = new RSAParameters();
+            rp.Modulus = privKey.Modulus.ToByteArrayUnsigned();
+            rp.Exponent = privKey.PublicExponent.ToByteArrayUnsigned();
+            rp.D = privKey.Exponent.ToByteArrayUnsigned();
+            rp.P = privKey.P.ToByteArrayUnsigned();
+            rp.Q = privKey.Q.ToByteArrayUnsigned();
+            rp.DP = privKey.DP.ToByteArrayUnsigned();
+            rp.DQ = privKey.DQ.ToByteArrayUnsigned();
+            rp.InverseQ = privKey.QInv.ToByteArrayUnsigned();
+            return rp;
         }
     }
 
