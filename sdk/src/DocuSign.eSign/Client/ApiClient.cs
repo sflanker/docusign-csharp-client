@@ -626,8 +626,61 @@ namespace DocuSign.eSign.Client
             {
                 this.RestClient.BaseUrl = baseUrl;
             }
+        }
 
-            this.RestClient.BaseUrl = baseUrl;
+        /// <summary>
+        /// After configuring Authentication, detect the base uri for API requests.
+        /// </summary>
+        /// <param name="oauthUrl">The Open Auth url used for authentication.</param>
+        /// <param name="accountId">The id of the DocuSign account being accessed.</param>
+        public void DetectBaseUrl(Uri oauthUrl, String accountId)
+        {
+            Uri baseUrl = this.RestClient.BaseUrl;
+            this.RestClient.BaseUrl = oauthUrl;
+
+            string path = "oauth/userinfo";
+            string contentType = null;
+
+            Dictionary<string, string> formParams = new Dictionary<string, string>();
+            Dictionary<string, string> queryParams = new Dictionary<string, string>();
+            Dictionary<string, string> headerParams = new Dictionary<string, string>(this.Configuration.DefaultHeader);
+            Dictionary<string, FileParameter> fileParams = new Dictionary<string, FileParameter>();
+            Dictionary<string, string> pathParams = new Dictionary<string, string>();
+
+            object postBody = null;
+            try
+            {
+                var response = (RestResponse)CallApi(path, Method.GET, queryParams, postBody, headerParams, formParams, fileParams, pathParams, contentType);
+                if (!response.IsSuccessful)
+                {
+                    throw new InvalidOperationException(
+                        $"User info request failed with {response.StatusCode} {response.StatusDescription}" +
+                        $"{Environment.NewLine}{response.Content}"
+                    );
+                }
+                var userInfo = JsonConvert.DeserializeObject<UserInfo>(response.Content);
+
+                var accountUrl =
+                    userInfo.accounts
+                        .SingleOrDefault(a =>
+                            String.Equals(a.account_id, accountId, StringComparison.OrdinalIgnoreCase))
+                        ?.base_uri;
+
+                if (accountUrl == null)
+                {
+                    throw new ArgumentException(
+                        "The authenticated user does not have access to the specified account.",
+                        nameof(accountId)
+                    );
+                }
+
+                this.RestClient.BaseUrl = new Uri(accountUrl, "restApi");
+            }
+            catch (Exception)
+            {
+                this.RestClient.BaseUrl = baseUrl;
+                throw;
+            }
         }
 
         private static RSA CreateRSAKeyFromPem(string key)
@@ -681,6 +734,31 @@ namespace DocuSign.eSign.Client
         public string refresh_token { get; set; }
 
         public int? expires_in { get; set; }
+    }
+
+    public class UserInfo
+    {
+        public string sub { get; set; }
+        public string name { get; set; }
+        public string given_name { get; set; }
+        public string family_name { get; set; }
+        public DateTime created { get; set; }
+        public string email { get; set; }
+        public Account[] accounts { get; set; }
+    }
+
+    public class Account
+    {
+        public string account_id { get; set; }
+        public bool is_default { get; set; }
+        public string account_name { get; set; }
+        public Uri base_uri { get; set; }
+        public Organization organization { get; set; }
+    }
+
+    public class Organization
+    {
+        public Guid organization_id { get; set; }
     }
 
 }
