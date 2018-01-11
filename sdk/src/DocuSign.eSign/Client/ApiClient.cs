@@ -562,7 +562,7 @@ namespace DocuSign.eSign.Client
             return tokenObj.access_token;
         }
 
-        public void ConfigureJwtAuthorizationFlow(string clientId, string userId, string oauthBasePath, string privateKeyFilename, int expiresInHours)
+        public void ConfigureJwtAuthorizationFlow(string clientId, string userId, Uri oauthUrl, string privateKeyFilename, int expiresInHours)
         {
             JwtSecurityTokenHandler handler = new JwtSecurityTokenHandler();
 
@@ -576,7 +576,7 @@ namespace DocuSign.eSign.Client
 
             descriptor.Subject = new ClaimsIdentity();
             descriptor.Subject.AddClaim(new Claim("scope", "signature"));
-            descriptor.Subject.AddClaim(new Claim("aud", oauthBasePath));
+            descriptor.Subject.AddClaim(new Claim("aud", oauthUrl.IsDefaultPort ? oauthUrl.Host : $"{oauthUrl.Host}:{oauthUrl.Port}"));
             descriptor.Subject.AddClaim(new Claim("iss", clientId));
 
             if (userId != null)
@@ -596,7 +596,7 @@ namespace DocuSign.eSign.Client
             string jwtToken = handler.WriteToken(token);
 
             Uri baseUrl = this.RestClient.BaseUrl;
-            this.RestClient.BaseUrl = new Uri(string.Format("https://{0}", oauthBasePath));
+            this.RestClient.BaseUrl = oauthUrl;
 
             string path = "oauth/token";
             string contentType = "application/x-www-form-urlencoded";
@@ -620,11 +620,11 @@ namespace DocuSign.eSign.Client
                 var response = CallApi(path, Method.POST, queryParams, postBody, headerParams, formParams, fileParams, pathParams, contentType);
                 TokenResponse tokenInfo = JsonConvert.DeserializeObject<TokenResponse>(((RestResponse)response).Content);
 
-                var config = Configuration.Default;
-                config.AddDefaultHeader("Authorization", string.Format("{0} {1}", tokenInfo.token_type, tokenInfo.access_token));
+                this.Configuration.AddDefaultHeader("Authorization", string.Format("{0} {1}", tokenInfo.token_type, tokenInfo.access_token));
             }
-            catch (Exception ex)
+            finally 
             {
+                this.RestClient.BaseUrl = baseUrl;
             }
 
             this.RestClient.BaseUrl = baseUrl;
