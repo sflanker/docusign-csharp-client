@@ -564,6 +564,16 @@ namespace DocuSign.eSign.Client
 
         public void ConfigureJwtAuthorizationFlow(string clientId, string userId, Uri oauthUrl, string privateKeyFilename, int expiresInHours)
         {
+            byte[] privateKey = null;
+            if (privateKeyFilename != null)
+            {
+                privateKey = File.ReadAllBytes(privateKeyFilename);
+            }
+            this.ConfigureJwtAuthorizationFlow(clientId, userId, oauthUrl, privateKey, expiresInHours);
+        }
+        
+        public void ConfigureJwtAuthorizationFlow(string clientId, string userId, Uri oauthUrl, byte[] privateKey, int expiresInHours)
+        {
             JwtSecurityTokenHandler handler = new JwtSecurityTokenHandler();
 
             var now = DateTime.UtcNow;
@@ -584,9 +594,9 @@ namespace DocuSign.eSign.Client
                 descriptor.Subject.AddClaim(new Claim("sub", userId));
             }
 
-            if (privateKeyFilename != null)
+            if (privateKey != null)
             {
-                string pemKey = File.ReadAllText(privateKeyFilename);
+                string pemKey = Encoding.ASCII.GetString(privateKey);
                 var rsa = CreateRSAKeyFromPem(pemKey);
                 RsaSecurityKey rsaKey = new RsaSecurityKey(rsa);
                 descriptor.SigningCredentials = new SigningCredentials(rsaKey, SecurityAlgorithms.RsaSha256Signature, SecurityAlgorithms.HmacSha256Signature);
