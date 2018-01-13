@@ -15,7 +15,7 @@ OpenAPI spec version: v2
     <PackageLicenseUrl>https://raw.githubusercontent.com/docusign/docusign-csharp-client/master/LICENSE</PackageLicenseUrl>
     <PackageProjectUrl>https://github.com/docusign/docusign-csharp-client</PackageProjectUrl>
     <PackageIconUrl>http://26c9d06e414e60fc3a18-f03eeda740093cbe74371aff89dec8d1.r69.cf2.rackcdn.com/icon32x32.png</PackageIconUrl>
-    <PackageVersion>2.1.8-pre1</PackageVersion>
+    <PackageVersion>2.1.8-invio1</PackageVersion>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{311056DF-354B-4ECC-856B-451A214F8AAD}</ProjectGuid>
